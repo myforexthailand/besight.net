@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 11 6% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 11 6% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 11 6% 11%;
+
+    --primary: 11 6% 11%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 11 6% 11%;
+
+    --muted: 0 0% 94%;
+    --muted-foreground: 11 4% 40%;
+
+    --accent: 0 0% 96%;
+    --accent-foreground: 11 6% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 89%;
+    --input: 0 0% 89%;
+    --ring: 11 6% 11%;
+
+    --radius: 9999px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family:
+      'Poppins',
+      'IBM Plex Sans Thai',
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .animate-marquee {
+    animation: marquee 30s linear infinite;
+  }
+  .animate-marquee-reverse {
+    animation: marquee-reverse 30s linear infinite;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes marquee-reverse {
+  0% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.gradient-border-hover:hover .gradient-border-bg {
+  animation: gradient-shift 0.8s ease forwards;
+}
+
+/* Legion VPN section */
+@keyframes legion-blob-1 {
+  0%,
+  100% {
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    border-radius: 63% 37% 41% 59% / 51% 62% 38% 49%;
+    transform: translate(3%, -4%) scale(1.06) rotate(8deg);
+  }
+  66% {
+    border-radius: 37% 63% 56% 44% / 49% 38% 62% 51%;
+    transform: translate(-3%, 3%) scale(0.96) rotate(-6deg);
+  }
+}
+
+@keyframes legion-blob-2 {
+  0%,
+  100% {
+    border-radius: 56% 44% 38% 62% / 44% 56% 44% 56%;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    border-radius: 44% 56% 62% 38% / 62% 38% 56% 44%;
+    transform: translate(-4%, 4%) scale(1.08) rotate(-10deg);
+  }
+}
+
+@keyframes legion-blob-3 {
+  0%,
+  100% {
+    border-radius: 49% 51% 46% 54% / 56% 44% 56% 44%;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  40% {
+    border-radius: 58% 42% 54% 46% / 44% 58% 42% 56%;
+    transform: translate(4%, 2%) scale(0.94) rotate(6deg);
+  }
+  70% {
+    border-radius: 42% 58% 46% 54% / 58% 42% 58% 42%;
+    transform: translate(-2%, -3%) scale(1.05) rotate(-4deg);
+  }
+}
+
+.legion-blob-1 {
+  animation: legion-blob-1 14s ease-in-out infinite;
+}
+.legion-blob-2 {
+  animation: legion-blob-2 16s ease-in-out infinite;
+}
+.legion-blob-3 {
+  animation: legion-blob-3 20s ease-in-out infinite;
+}

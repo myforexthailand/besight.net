@@ -1,32 +1,29 @@
-# React + TypeScript + Vite
+# BeSight
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+เว็บไซต์หลัก BeSight + แดชบอร์ดสมาชิก + CRM หลังบ้าน ในแอป Next.js ตัวเดียว
+(Next.js 16 · React 19 · Prisma 7 · MySQL/MariaDB · Auth.js)
 
-Currently, two official plugins are available:
+- `/` เว็บไซต์หลัก (ข่าว, อีเวนต์, เครื่องมือ, วิเคราะห์ SPDR)
+- `/dashboard` แดชบอร์ดสมาชิก
+- `/crm` หลังบ้านสำหรับแอดมิน
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## เริ่มต้น
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+cp .env.example .env      # ตั้ง DATABASE_URL, AUTH_SECRET
+npm run db:deploy         # สร้างตาราง
+npm run admin:create -- you@example.com 'password'   # แอดมินคนแรก
+npm run dev               # http://localhost:3000
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+ก่อน push: `npx tsc --noEmit && npm run lint && npm run build`
+
+## เอกสาร
+
+- **[docs/PROJECT-OVERVIEW.md](docs/PROJECT-OVERVIEW.md)** — ภาพรวมสำหรับทุกฝ่าย: ระบบทำอะไรได้บ้าง สถานะตอน deploy และงานที่ส่งต่อให้แต่ละฝ่าย
+- **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** — คู่มือนักพัฒนา: โครงสร้าง, หลักการของโค้ด, cron, migration, deploy, ปัญหาที่เคยเจอ และฟีเจอร์ที่ยังขาด
+- [docs/GLOSSARY.md](docs/GLOSSARY.md) — ศัพท์เฉพาะ (lot, cycle, entitlement …)
+- [docs/ADR-001-crm-realtime-refresh.md](docs/ADR-001-crm-realtime-refresh.md) — การรีเฟรชข้อมูล CRM แบบเรียลไทม์
+- [mt-bridge/README.md](mt-bridge/README.md) — บริการ MT5 สำหรับ Trading Journal
+- [.env.example](.env.example) — ตัวแปร environment ทั้งหมดพร้อมคำอธิบาย

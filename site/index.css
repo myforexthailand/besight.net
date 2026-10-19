@@ -1,0 +1,368 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+@layer base {
+  :root {
+    --site-background: 0 0% 98%;
+    --site-foreground: 11 6% 11%;
+
+    --site-card: 0 0% 100%;
+    --site-card-foreground: 11 6% 11%;
+
+    --site-popover: 0 0% 100%;
+    --site-popover-foreground: 11 6% 11%;
+
+    --site-primary: 11 6% 11%;
+    --site-primary-foreground: 0 0% 98%;
+
+    --site-secondary: 0 0% 96%;
+    --site-secondary-foreground: 11 6% 11%;
+
+    --site-muted: 0 0% 94%;
+    --site-muted-foreground: 11 4% 40%;
+
+    --site-accent: 0 0% 96%;
+    --site-accent-foreground: 11 6% 11%;
+
+    --site-destructive: 0 84% 60%;
+    --site-destructive-foreground: 0 0% 98%;
+
+    --site-border: 0 0% 89%;
+    --site-input: 0 0% 89%;
+    --site-ring: 11 6% 11%;
+
+    --site-radius: 9999px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /* Fonts come from next/font in app/(site)/layout.tsx as CSS variables on
+     .site-root, so the family is set there rather than on <body> (which the
+     root layout owns and the CRM/dashboard share). */
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .site-root {
+    font-family:
+      var(--font-poppins),
+      var(--font-plex-thai),
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
+  }
+}
+
+/* Shared building blocks. Anything repeated verbatim across the site lives
+   here instead of being re-typed per component (cards, labels, buttons,
+   headings, legal text). Brand colours (navy, steel,
+   positive, negative, gold) and card shadows (shadow-soft, shadow-soft-lg,
+   shadow-soft-hover) are Tailwind tokens in tailwind.config.ts. */
+@layer components {
+  .surface {
+    @apply rounded-2xl bg-white shadow-soft;
+  }
+  .surface-lg {
+    @apply rounded-3xl bg-white shadow-soft-lg;
+  }
+  .eyebrow {
+    @apply text-sm font-semibold uppercase tracking-widest text-muted-foreground;
+  }
+  .eyebrow-sm {
+    @apply text-xs font-semibold uppercase tracking-wider text-steel;
+  }
+  .icon-btn {
+    @apply flex h-9 w-9 items-center justify-center rounded-full border-2 border-zinc-900/[0.13] transition-colors hover:bg-zinc-900/[0.04];
+  }
+  .pill-outline {
+    @apply inline-flex items-center gap-1.5 rounded-full border-2 border-zinc-900/[0.13] px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-900/[0.04];
+  }
+  /* Native <select> as a pill with a custom chevron, so the arrow isn't jammed against the edge. */
+  .select-pill {
+    @apply cursor-pointer appearance-none rounded-full border-2 border-zinc-900/[0.13] bg-white py-1.5 pl-4 pr-9 text-xs font-medium text-zinc-600 outline-none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+  }
+  .cover-fill {
+    @apply absolute inset-0 h-full w-full object-cover;
+  }
+  .section-title {
+    @apply text-3xl font-semibold tracking-tight md:text-4xl lg:text-5xl;
+  }
+  .back-link {
+    @apply inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-navy;
+  }
+  .legal-heading {
+    @apply mt-10 text-2xl font-semibold tracking-tight text-navy;
+  }
+  .legal-text {
+    @apply mt-4 text-base leading-relaxed text-zinc-700;
+  }
+}
+
+@layer utilities {
+  .animate-marquee {
+    animation: marquee 30s linear infinite;
+  }
+  .animate-marquee-reverse {
+    animation: marquee-reverse 30s linear infinite;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes marquee-reverse {
+  0% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+/* Language toggle: the new flag flips in with a bouncy overshoot. */
+@keyframes lang-flip {
+  0% {
+    transform: perspective(200px) rotateY(-180deg) scale(0.3);
+    opacity: 0;
+  }
+  60% {
+    transform: perspective(200px) rotateY(12deg) scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: perspective(200px) rotateY(0deg) scale(1);
+  }
+}
+@keyframes lang-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+.lang-flip {
+  animation: lang-flip 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.lang-ring {
+  animation: lang-ring 0.55s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lang-flip,
+  .lang-ring {
+    animation: none;
+  }
+}
+
+/* Attention-grabbing CTA button: soft pulsing ring, a light sweep, and a nudging arrow. */
+@keyframes cta-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 14px rgba(255, 255, 255, 0);
+  }
+}
+@keyframes cta-shine {
+  0% {
+    transform: translateX(-140%) skewX(-20deg);
+  }
+  55%,
+  100% {
+    transform: translateX(380%) skewX(-20deg);
+  }
+}
+@keyframes cta-arrow {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+.cta-btn {
+  position: relative;
+  overflow: hidden;
+  animation: cta-ring 2.2s ease-out infinite;
+}
+.cta-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(17, 29, 69, 0.16), transparent);
+  animation: cta-shine 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.cta-arrow {
+  animation: cta-arrow 1.4s ease-in-out infinite;
+}
+.group:hover .cta-arrow {
+  animation-duration: 0.7s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-btn,
+  .cta-btn::after,
+  .cta-arrow {
+    animation: none;
+  }
+}
+
+/* Login CTA: flowing gradient border, pulsing glow, light sweep and a wiggling icon. */
+@keyframes cta-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 111, 236, 0.45);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 12px rgba(251, 111, 236, 0);
+  }
+}
+@keyframes cta-wiggle {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0);
+  }
+  78% {
+    transform: rotate(-14deg) scale(1.1);
+  }
+  86% {
+    transform: rotate(12deg) scale(1.1);
+  }
+  94% {
+    transform: rotate(-6deg);
+  }
+}
+.cta-login {
+  animation:
+    gradient-shift 3.2s linear infinite,
+    cta-glow 2.4s ease-out infinite;
+  transition: transform 0.2s ease;
+}
+.cta-login:hover {
+  transform: scale(1.05);
+}
+.cta-login > * {
+  position: relative;
+  overflow: hidden;
+}
+.cta-login > *::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, rgba(251, 111, 236, 0.22), transparent);
+  animation: cta-shine 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.cta-login svg {
+  animation: cta-wiggle 3.6s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-login,
+  .cta-login > *::after,
+  .cta-login svg {
+    animation: none;
+  }
+}
+
+.gradient-border-hover:hover .gradient-border-bg {
+  animation: gradient-shift 0.8s ease forwards;
+}
+
+/* Legion VPN section */
+@keyframes legion-blob-1 {
+  0%,
+  100% {
+    border-radius: 42% 58% 63% 37% / 41% 44% 56% 59%;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    border-radius: 63% 37% 41% 59% / 51% 62% 38% 49%;
+    transform: translate(3%, -4%) scale(1.06) rotate(8deg);
+  }
+  66% {
+    border-radius: 37% 63% 56% 44% / 49% 38% 62% 51%;
+    transform: translate(-3%, 3%) scale(0.96) rotate(-6deg);
+  }
+}
+
+@keyframes legion-blob-2 {
+  0%,
+  100% {
+    border-radius: 56% 44% 38% 62% / 44% 56% 44% 56%;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    border-radius: 44% 56% 62% 38% / 62% 38% 56% 44%;
+    transform: translate(-4%, 4%) scale(1.08) rotate(-10deg);
+  }
+}
+
+@keyframes legion-blob-3 {
+  0%,
+  100% {
+    border-radius: 49% 51% 46% 54% / 56% 44% 56% 44%;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  40% {
+    border-radius: 58% 42% 54% 46% / 44% 58% 42% 56%;
+    transform: translate(4%, 2%) scale(0.94) rotate(6deg);
+  }
+  70% {
+    border-radius: 42% 58% 46% 54% / 58% 42% 58% 42%;
+    transform: translate(-2%, -3%) scale(1.05) rotate(-4deg);
+  }
+}
+
+.legion-blob-1 {
+  animation: legion-blob-1 14s ease-in-out infinite;
+}
+.legion-blob-2 {
+  animation: legion-blob-2 16s ease-in-out infinite;
+}
+.legion-blob-3 {
+  animation: legion-blob-3 20s ease-in-out infinite;
+}

@@ -1,38 +1,51 @@
 {
-  "name": "wellness-landing-page",
+  "name": "day-trade-setup-website",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "spdr:sync": "tsx scripts/spdr-sync.ts",
+    "admin:create": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
+    "@prisma/adapter-mariadb": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "@radix-ui/react-accordion": "^1.2.20",
     "@radix-ui/react-slot": "^1.3.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.46.0",
-    "motion": "^13.3.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.4",
+    "lucide-react": "^1.48.0",
+    "motion": "^13.4.5",
+    "next": "16.2.11",
+    "next-auth": "^5.0.0-beta.32",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "recharts": "^3.10.1",
-    "tailwind-merge": "^3.7.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
-    "@types/node": "^24.13.4",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "@vitejs/plugin-react": "^6.1.1",
-    "autoprefixer": "^10.6.0",
-    "oxlint": "^1.81.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.6.1",
+    "dotenv": "^17.4.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.11",
     "postcss": "^8.5.28",
+    "prisma": "^7.10.0",
     "tailwindcss": "^3.4.19",
-    "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.23.13",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20.9"
   }
 }

@@ -1,8 +1,10 @@
+import tailwindcssAnimate from 'tailwindcss-animate'
 import type { Config } from 'tailwindcss'
 
 export default {
   darkMode: ['class'],
-  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Scoped to the public landing only — the CRM/dashboard don't use Tailwind.
+  content: ['./site/**/*.{ts,tsx}', './app/(site)/**/*.{ts,tsx}'],
   theme: {
     container: {
       center: true,
@@ -13,44 +15,54 @@ export default {
     },
     extend: {
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        border: 'hsl(var(--site-border))',
+        input: 'hsl(var(--site-input))',
+        ring: 'hsl(var(--site-ring))',
+        background: 'hsl(var(--site-background))',
+        foreground: 'hsl(var(--site-foreground))',
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: 'hsl(var(--site-primary))',
+          foreground: 'hsl(var(--site-primary-foreground))',
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: 'hsl(var(--site-secondary))',
+          foreground: 'hsl(var(--site-secondary-foreground))',
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: 'hsl(var(--site-destructive))',
+          foreground: 'hsl(var(--site-destructive-foreground))',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: 'hsl(var(--site-muted))',
+          foreground: 'hsl(var(--site-muted-foreground))',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: 'hsl(var(--site-accent))',
+          foreground: 'hsl(var(--site-accent-foreground))',
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+          DEFAULT: 'hsl(var(--site-popover))',
+          foreground: 'hsl(var(--site-popover-foreground))',
         },
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
+          DEFAULT: 'hsl(var(--site-card))',
+          foreground: 'hsl(var(--site-card-foreground))',
         },
+        navy: '#0B1B3B',
+        steel: '#5E6470',
+        positive: '#16A34A',
+        negative: '#DC2626',
+        gold: '#F5B700',
+      },
+      boxShadow: {
+        soft: '2px 4px 12px rgba(0, 0, 0, 0.06)',
+        'soft-lg': '2px 4px 20px rgba(0, 0, 0, 0.06)',
+        'soft-hover': '0 8px 30px rgb(0, 0, 0, 0.04)',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        lg: 'var(--site-radius)',
+        md: 'calc(var(--site-radius) - 2px)',
+        sm: 'calc(var(--site-radius) - 4px)',
       },
       keyframes: {
         marquee: {
@@ -89,5 +101,5 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [tailwindcssAnimate],
 } satisfies Config

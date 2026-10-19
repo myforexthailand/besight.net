@@ -1,0 +1,1136 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum Plan {
+  free
+  ib_partner
+}
+
+enum RecordStatus {
+  active
+  inactive
+}
+
+enum VerificationStatus {
+  verified
+  pending
+  not_found
+}
+
+enum IndicatorAccessStatus {
+  active
+  suspended
+  pending
+  expired
+}
+
+enum AccessSource {
+  Broker
+  Admin
+  SpecialAccess
+  Plan
+}
+
+enum TelegramStatus {
+  active
+  pending
+  expired
+  banned
+}
+
+enum CustomerStage {
+  new
+  existing
+}
+
+enum LotCheckKind {
+  account
+  campaign
+  country
+  excluded_symbol
+}
+
+model Member {
+  id                       Int                        @id @default(autoincrement())
+  externalId               String?                    @unique @db.VarChar(191)
+  code                     String                     @unique @db.VarChar(32)
+  name                     String                     @db.VarChar(191)
+  displayName              String?                    @db.VarChar(191)
+  avatarUrl                String?                    @db.Text
+  /**
+   * Member-chosen public profile for the leaderboard (nickname, avatar,
+   * what to show) — see lib/leaderboardProfile.ts. Null = defaults.
+   */
+  leaderboardProfileJson   String?                    @db.Text
+  email                    String?                    @unique @db.VarChar(191)
+  /**
+   * scrypt hash for email/password sign-in (null = social-login only).
+   */
+  passwordHash             String?                    @db.VarChar(255)
+  /// See Admin.tokenVersion — invalidates this member's issued sessions.
+  tokenVersion             Int                        @default(0)
+  /**
+   * When the member last passed the identity check (TradingView + email vs
+   * the CRM-synced record). Once set, the dashboard stops asking them to
+   * verify again — the check is only needed to claim/add a trade account.
+   */
+  identityVerifiedAt       DateTime?
+  /**
+   * Contact details the member entered themselves at identity
+   * verification — kept apart from phone/address, which the CRM sync
+   * overwrites from upstream. See lib/thaiAddress.ts for the address shape.
+   */
+  contactPhone             String?                    @db.VarChar(32)
+  contactAddressJson       String?                    @db.Text
+  contactUpdatedAt         DateTime?
+  phone                    String?                    @db.VarChar(64)
+  country                  String?                    @db.VarChar(96)
+  address                  String?                    @db.Text
+  tradingView              String?                    @db.VarChar(96)
+  telegramUsername         String?                    @db.VarChar(96)
+  telegramUserId           String?                    @db.VarChar(96)
+  discordUsername          String?                    @db.VarChar(96)
+  discordUserId            String?                    @db.VarChar(96)
+  lineUserId               String?                    @db.VarChar(96)
+  lineDisplayName          String?                    @db.VarChar(191)
+  socialLinksJson          String?                    @db.Text
+  joinedAt                 DateTime                   @default(now())
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  plan                     Plan                       @default(free)
+  primaryTradeAccountId    Int?                       @unique
+  requiredLotsOverride     Decimal?                   @db.Decimal(12, 4)
+  requiredLotsOverrideNote String?                    @db.Text
+  crmStartDate             DateTime?
+  crmExpiryDate            DateTime?
+  currentPeriodLots        Decimal                    @default(0) @db.Decimal(18, 8)
+  currentPeriodLotsAt      DateTime?
+  /**
+   * The window the snapshot above was computed for — display layers only
+   * trust currentPeriodLots when this matches the member's current
+   * qualification window (a later sync can move crmStart/crmExpiry dates,
+   * which would otherwise leave a stale-window number on screen).
+   */
+  currentPeriodLotsFrom    DateTime?
+  currentPeriodLotsTo      DateTime?
+  customerStageOverride    CustomerStage?
+  primaryTradeAccount      TradeAccount?              @relation("PrimaryTradeAccount", fields: [primaryTradeAccountId], references: [id], onDelete: SetNull)
+  tradeAccounts            TradeAccount[]             @relation("MemberTradeAccounts")
+  tradeLogs                TradeLog[]
+  acquisitionChannels      MemberAcquisitionChannel[]
+  indicatorAccess          MemberIndicatorAccess[]
+  telegramAccess           TelegramAccess[]
+  renewalHistory           RenewalRecord[]
+  activityLogs             ActivityLog[]
+  rewardClaims             RewardClaim[]
+  journalAccounts          JournalAccount[]
+  socialAccounts           SocialAccount[]
+  notificationReads        MemberNotificationRead[]
+  lotCheckRuns             LotCheckRun[]
+  activityEnrollments      ActivityEnrollment[]
+  spinResults              SpinResult[]
+  courseEnrollments        CourseEnrollment[]
+  lessonProgress           LessonProgress[]
+  becGrants                BecGrant[]
+  claimTokens              MemberClaimToken[]
+
+  @@index([joinedAt])
+  @@index([plan])
+}
+
+model MemberAcquisitionChannel {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  channel   String   @db.VarChar(64)
+  createdAt DateTime @default(now())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, channel])
+}
+
+model Broker {
+  id           Int            @id @default(autoincrement())
+  name         String         @db.VarChar(120)
+  logoUrl      String?        @db.Text
+  code         String         @unique @db.VarChar(32)
+  url          String?        @db.Text
+  status       RecordStatus   @default(active)
+  importMethod String?        @db.VarChar(64)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  accounts     TradeAccount[]
+}
+
+model TradeAccount {
+  id                  Int                  @id @default(autoincrement())
+  memberId            Int
+  brokerId            Int?
+  tradeId             String               @db.VarChar(64)
+  accountType         String?              @db.VarChar(64)
+  partnerIb           String?              @db.VarChar(96)
+  verification        VerificationStatus   @default(pending)
+  status              RecordStatus         @default(active)
+  /**
+   * Whether the MEMBER has confirmed this account is theirs. Accounts created
+   * by the CRM sync start false and stay hidden from the customer dashboard
+   * until the member claims them; self-added accounts are true from the start.
+   * The CRM always sees every account regardless.
+   */
+  memberConfirmed     Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  lastSyncAt          DateTime?
+  member              Member               @relation("MemberTradeAccounts", fields: [memberId], references: [id], onDelete: Cascade)
+  broker              Broker?              @relation(fields: [brokerId], references: [id], onDelete: SetNull)
+  primaryForMembers   Member[]             @relation("PrimaryTradeAccount")
+  tradeLogs           TradeLog[]
+  lotCheckRuns        LotCheckRun[]
+  activityEnrollments ActivityEnrollment[]
+  journalAccounts     JournalAccount[]
+
+  @@index([brokerId, tradeId])
+  @@index([memberId, tradeId])
+  @@index([memberId, status])
+}
+
+model TradeLog {
+  id             BigInt       @id @default(autoincrement())
+  tradeAccountId Int
+  memberId       Int
+  externalKey    String?      @unique @db.VarChar(191)
+  symbol         String       @db.VarChar(64)
+  lots           Decimal      @db.Decimal(18, 8)
+  rebate         Decimal      @default(0) @db.Decimal(18, 8)
+  campaignName   String?      @db.VarChar(191)
+  country        String?      @db.VarChar(96)
+  tradeDate      DateTime
+  source         String       @default("besight_lot_api") @db.VarChar(64)
+  createdAt      DateTime     @default(now())
+  tradeAccount   TradeAccount @relation(fields: [tradeAccountId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, tradeDate])
+  @@index([tradeAccountId, tradeDate])
+}
+
+model Indicator {
+  id               Int                        @id @default(autoincrement())
+  name             String                     @unique @db.VarChar(120)
+  publicationId    String?                    @db.VarChar(191)
+  status           RecordStatus               @default(active)
+  eaFileUrl        String?                    @db.Text
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  access           MemberIndicatorAccess[]
+  planEntitlements PlanIndicatorEntitlement[]
+  renewalHistory   RenewalRecord[]
+}
+
+model PlanIndicatorEntitlement {
+  id          Int       @id @default(autoincrement())
+  plan        Plan
+  indicatorId Int
+  createdAt   DateTime  @default(now())
+  indicator   Indicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@unique([plan, indicatorId])
+}
+
+model MemberIndicatorAccess {
+  id             Int                   @id @default(autoincrement())
+  memberId       Int
+  indicatorId    Int
+  status         IndicatorAccessStatus @default(pending)
+  source         AccessSource
+  startsAt       DateTime
+  expiresAt      DateTime
+  lastRenewedAt  DateTime?
+  manualLock     Boolean               @default(false)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  member         Member                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  indicator      Indicator             @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  renewalHistory RenewalRecord[]
+
+  @@unique([memberId, indicatorId])
+  @@index([status, expiresAt])
+}
+
+model RenewalRecord {
+  id                BigInt                 @id @default(autoincrement())
+  memberId          Int
+  indicatorId       Int
+  indicatorAccessId Int?
+  period            String                 @db.VarChar(32)
+  qualifiedLots     Decimal                @db.Decimal(18, 8)
+  requiredLots      Decimal                @db.Decimal(18, 8)
+  renewed           Boolean
+  /**
+   * Who performed it: lot-check automation/cron (`auto`) or an admin action
+   * such as Grant/Extend (`manual`). Pre-existing rows are all automation.
+   */
+  origin            String                 @default("auto") @db.VarChar(16)
+  note              String?                @db.Text
+  oldExpiry         DateTime?
+  newExpiry         DateTime?
+  createdAt         DateTime               @default(now())
+  member            Member                 @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  indicator         Indicator              @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  indicatorAccess   MemberIndicatorAccess? @relation(fields: [indicatorAccessId], references: [id], onDelete: SetNull)
+
+  // Not unique: manual Grant/Extend log a row per action, so one cycle can
+  // hold several. Lot-check automation dedupes on its own `auto` rows.
+  @@index([memberId, indicatorId, period])
+  @@index([period, renewed])
+}
+
+model TelegramAccess {
+  id        Int            @id @default(autoincrement())
+  memberId  Int
+  username  String?        @db.VarChar(96)
+  userId    String?        @db.VarChar(96)
+  room      String         @db.VarChar(191)
+  status    TelegramStatus @default(pending)
+  grantedAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  member    Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, room])
+}
+
+model LotCheckRun {
+  id             BigInt           @id @default(autoincrement())
+  memberId       Int?
+  tradeAccountId Int?
+  tradeId        String?          @db.VarChar(64)
+  dateFrom       DateTime
+  dateTo         DateTime
+  totalLots      Decimal          @default(0) @db.Decimal(18, 8)
+  qualified      Boolean          @default(false)
+  autoProcessed  Boolean          @default(false)
+  errorMessage   String?          @db.Text
+  createdAt      DateTime         @default(now())
+  member         Member?          @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  tradeAccount   TradeAccount?    @relation(fields: [tradeAccountId], references: [id], onDelete: SetNull)
+  results        LotCheckResult[]
+
+  @@index([tradeId, dateFrom, dateTo])
+  @@index([createdAt])
+}
+
+model LotCheckResult {
+  id           BigInt       @id @default(autoincrement())
+  runId        BigInt
+  kind         LotCheckKind
+  campaignName String?      @db.VarChar(191)
+  loginId      String?      @db.VarChar(64)
+  country      String?      @db.VarChar(96)
+  instrument   String?      @db.VarChar(64)
+  lots         Decimal      @db.Decimal(18, 8)
+  createdAt    DateTime     @default(now())
+  run          LotCheckRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([kind, createdAt])
+  @@index([loginId])
+}
+
+model ActivityLog {
+  id                 BigInt    @id @default(autoincrement())
+  memberId           Int?
+  actor              String    @db.VarChar(96)
+  action             String    @db.VarChar(120)
+  description        String    @db.Text
+  notification       Boolean   @default(true)
+  notificationReadAt DateTime?
+  createdAt          DateTime  @default(now())
+  member             Member?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([memberId, createdAt])
+  @@index([notification, notificationReadAt, createdAt])
+}
+
+model Admin {
+  id           Int               @id @default(autoincrement())
+  name         String            @db.VarChar(120)
+  email        String            @unique @db.VarChar(191)
+  role         String            @db.VarChar(32)
+  isOwner      Boolean           @default(false)
+  passwordHash String?           @db.VarChar(255)
+  /// Bumped to invalidate every JWT already issued to this admin (password
+  /// change, forced sign-out). Compared on each guarded request.
+  tokenVersion Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  claimTokens  AdminClaimToken[]
+}
+
+model SystemSetting {
+  key         String   @id @db.VarChar(96)
+  valueJson   String   @db.Text
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
+}
+
+enum ActivityStatus {
+  upcoming
+  live
+  finished
+}
+
+/**
+ * Customer-facing activity / monthly trading competition (the /dashboard/activities
+ * feature). Distinct from ActivityLog, which is the admin audit trail. Managed
+ * by admins in the CRM; the customer dashboard reads published rows only.
+ */
+model Activity {
+  id                  Int                  @id @default(autoincrement())
+  slug                String               @unique @db.VarChar(64)
+  title               String               @db.VarChar(191)
+  description         String?              @db.Text
+  status              ActivityStatus       @default(upcoming)
+  startDate           DateTime
+  endDate             DateTime
+  traders             Int                  @default(0)
+  prizePool           Decimal              @default(0) @db.Decimal(12, 2)
+  /**
+   * Cover image — a URL or data URL, stored whole so no file storage is needed.
+   */
+  coverImage          String?              @db.Text
+  /**
+   * When customers first see the activity (null = as soon as it's published).
+   */
+  visibleFrom         DateTime?
+  /**
+   * When registration opens (null = immediately).
+   */
+  registrationOpensAt DateTime?
+  /**
+   * One rule per line — the customer detail page renders them as a list.
+   */
+  rules               String?              @db.Text
+  /**
+   * Manual ordering; lower shows first. Ties fall back to startDate desc.
+   */
+  sortOrder           Int                  @default(0)
+  published           Boolean              @default(true)
+  /**
+   * How members compete: `registered` (own partner-broker account, lots from
+   * the lot webhook) or `demo_legacy` (pre-existing demo-only competitions —
+   * frozen: viewable, no new enrollments).
+   */
+  mode                String               @default("registered") @db.VarChar(16)
+  /**
+   * When winners were locked and prize claims auto-created (null = open).
+   */
+  winnersFinalizedAt  DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  enrollments         ActivityEnrollment[]
+  prizes              CompetitionPrize[]
+  claims              RewardClaim[]
+
+  @@index([published, status, startDate])
+}
+
+/**
+ * One member's registration for one activity (competition). A member joins at
+ * most once per activity; admins can remove a registration in the CRM. The
+ * displayed "traders" count is the number of these rows, never a hand-typed
+ * number.
+ */
+model ActivityEnrollment {
+  id               Int           @id @default(autoincrement())
+  activityId       Int
+  memberId         Int
+  /**
+   * The competition account the member registered with — usually their own
+   * verified XM account (then `tradeAccountId` points at the CRM row), but a
+   * demo account declared for the competition is kept here too (snapshot of
+   * `tradeId` survives the CRM account later being unlinked).
+   */
+  tradeAccountId   Int?
+  tradeId          String?       @db.VarChar(64)
+  /**
+   * Declared by the member at registration; demo accounts need their own lot
+   * provider before they can be scored (see activityScoring.ts).
+   */
+  isDemo           Boolean       @default(false)
+  verifiedAt       DateTime?
+  verificationNote String?       @db.Text
+  /**
+   * ── Result snapshot ──
+   * Lots counted for THIS activity's window only, refreshed by the cron/admin.
+   * Deliberately separate from the CRM's Member.currentPeriodLots: competition
+   * results never feed rebate, indicator renewal, or member lot totals.
+   */
+  lots             Decimal       @default(0) @db.Decimal(18, 8)
+  lotsAt           DateTime?
+  lotsFrom         DateTime?
+  lotsTo           DateTime?
+  checkError       String?       @db.Text
+  createdAt        DateTime      @default(now())
+  activity         Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  member           Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  tradeAccount     TradeAccount? @relation(fields: [tradeAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([activityId, memberId])
+  /**
+   * One competition account belongs to a single member per activity — the
+   * DB enforces it so two concurrent registrations can't slip through.
+   */
+  @@unique([activityId, tradeId])
+  @@index([memberId, createdAt])
+  @@index([activityId, createdAt])
+  @@index([activityId, lots])
+}
+
+/**
+ * Prize table for one activity (`rankFrom`–`rankTo` → award). Admin-managed;
+ * the finalize step matches standings ranks against these rows and creates
+ * one RewardClaim per winner.
+ */
+model CompetitionPrize {
+  id         Int      @id @default(autoincrement())
+  activityId Int
+  rankFrom   Int
+  rankTo     Int
+  title      String   @db.VarChar(191)
+  valueNote  String?  @db.Text
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([activityId, sortOrder])
+}
+
+/**
+ * Loyalty tier ladder (Bronze → Exclusive). Thresholds are lifetime lots;
+ * admin-editable so the ladder never needs a code change.
+ */
+model RewardTier {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(32)
+  title     String   @db.VarChar(96)
+  titleEn   String?  @db.VarChar(96)
+  threshold Decimal  @db.Decimal(18, 2)
+  reward    String   @db.VarChar(191)
+  rewardEn  String?  @db.VarChar(191)
+  icon      String   @default("redeem") @db.VarChar(48)
+  image     String?  @db.Text
+  accent    String   @default("#2F6FED") @db.VarChar(16)
+  sortOrder Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * One member's reward to fulfil — tier claims, competition prizes and manual
+ * grants share a single queue so the CRM fulfils everything in one place.
+ * `refKey` scopes idempotency: `tier:{key}` or `activity:{id}:rank:{rank}`.
+ */
+model RewardClaim {
+  id         Int       @id @default(autoincrement())
+  memberId   Int
+  kind       String    @db.VarChar(16)
+  refKey     String    @db.VarChar(96)
+  activityId Int?
+  title      String    @db.VarChar(191)
+  detail     String?   @db.Text
+  status     String    @default("pending") @db.VarChar(16)
+  note       String?   @db.Text
+  createdAt  DateTime  @default(now())
+  decidedAt  DateTime?
+  member     Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  activity   Activity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  @@unique([memberId, kind, refKey])
+  @@index([status, createdAt])
+  @@index([memberId, createdAt])
+}
+
+/**
+ * ── BEC points & Spin & Win ──
+ * Members earn BEC points from their REAL traded lots (TradeLog), converted by
+ * a per-symbol rate (e.g. 1 lot of gold = 3 BEC). Points are never written to
+ * the trade logs or to CRM lot totals: the balance is computed on read as
+ * "earned from trades − spent on spins". Spins persist a SpinResult row that
+ * the CRM fulfils.
+ */
+
+/**
+ * Points per traded lot for one symbol. Symbols without a row use the
+ * `defaultPointsPerLot` from the spin settings.
+ */
+model BecRate {
+  id           Int      @id @default(autoincrement())
+  symbol       String   @unique @db.VarChar(32)
+  pointsPerLot Decimal  @db.Decimal(12, 4)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/**
+ * One wedge on the wheel / one possible award. `weight` is the relative
+ * probability; `stock` null means unlimited.
+ */
+model SpinPrize {
+  id             Int          @id @default(autoincrement())
+  name           String       @db.VarChar(120)
+  icon           String       @default("redeem") @db.VarChar(48)
+  /**
+   * Optional image (URL or data URL) shown instead of the icon.
+   */
+  image          String?      @db.Text
+  /**
+   * Chance per spin in basis points: 100 = 1%, 10000 = 100%. Drawable
+   * prizes share the roll in proportion, so a sold-out / capped prize's
+   * share spreads over the rest automatically.
+   */
+  weight         Int          @default(100)
+  /**
+   * Remaining to give out, across all members (null = unlimited).
+   */
+  stock          Int?
+  /**
+   * Max wins per member (null = unlimited).
+   */
+  perMemberLimit Int?
+  /**
+   * Free-text value shown to customers, e.g. "$5 Bonus Rebate".
+   */
+  valueNote      String?      @db.Text
+  active         Boolean      @default(true)
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  results        SpinResult[]
+}
+
+/**
+ * BEC points materialized from trade logs that are about to be pruned, so a
+ * member's earned points never shrink when history ages out.
+ */
+model BecGrant {
+  id        Int      @id @default(autoincrement())
+  memberId  Int
+  lots      Decimal  @db.Decimal(18, 8)
+  points    Decimal  @db.Decimal(18, 8)
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, createdAt])
+}
+
+enum SpinResultStatus {
+  pending
+  fulfilled
+  cancelled
+}
+
+model SpinResult {
+  id          Int              @id @default(autoincrement())
+  memberId    Int
+  prizeId     Int
+  /**
+   * BEC spent on this spin — refunded automatically while status is cancelled.
+   */
+  cost        Decimal          @default(0) @db.Decimal(18, 4)
+  status      SpinResultStatus @default(pending)
+  spunAt      DateTime         @default(now())
+  fulfilledAt DateTime?
+  note        String?          @db.Text
+  member      Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  prize       SpinPrize        @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, spunAt])
+  @@index([status, spunAt])
+}
+
+/**
+ * ── Trading Journal (member-private) ──
+ * A member links each journal account to one of their own registered trade
+ * accounts and records real outcomes per trade (entry/exit, P&L) — data the
+ * rebate-only TradeLog never captures. Stats are always derived from the
+ * trade rows, so nothing can drift. Lots here never feed CRM qualification.
+ */
+
+model JournalAccount {
+  id                  Int            @id @default(autoincrement())
+  memberId            Int
+  /**
+   * The member's own registered account this journal tracks.
+   */
+  tradeAccountId      Int?
+  tradeId             String         @db.VarChar(64)
+  broker              String         @db.VarChar(120)
+  accountType         String         @default("Standard") @db.VarChar(64)
+  platform            String         @default("MetaTrader 5") @db.VarChar(32)
+  startingBalance     Decimal        @default(0) @db.Decimal(18, 2)
+  startDate           DateTime
+  /**
+   * MT server name (e.g. XMGlobal-MT5) for future live-sync. Non-secret.
+   */
+  mtServer            String?        @db.VarChar(64)
+  /**
+   * Investor (read-only) password, AES-256-GCM encrypted. Plaintext is
+   * never returned by any API — only a "set or not" flag leaves the server.
+   */
+  investorPasswordEnc String?        @db.Text
+  /**
+   * Last time trades were pulled from the MT bridge for this account.
+   */
+  mtLastSyncAt        DateTime?
+  /**
+   * When the MT bridge last confirmed the investor login works (null =
+   * not verified yet, e.g. the bridge isn't configured).
+   */
+  mtVerifiedAt        DateTime?
+  /**
+   * Last bridge login/sync error shown to the member (null = fine).
+   */
+  mtVerifyError       String?        @db.Text
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  member              Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  tradeAccount        TradeAccount?  @relation(fields: [tradeAccountId], references: [id], onDelete: SetNull)
+  trades              JournalTrade[]
+  riskRule            RiskRule?
+
+  @@unique([memberId, tradeAccountId])
+  @@index([memberId, createdAt])
+}
+
+model JournalTrade {
+  id          Int            @id @default(autoincrement())
+  accountId   Int
+  /**
+   * Dedupe key for imports (`ticket:closeTime`); null for hand-entered rows.
+   */
+  externalKey String?        @unique @db.VarChar(191)
+  ticket      String?        @db.VarChar(64)
+  symbol      String         @db.VarChar(32)
+  side        String         @db.VarChar(8)
+  openAt      DateTime
+  /**
+   * Null = still open.
+   */
+  closeAt     DateTime?
+  openPrice   Decimal        @db.Decimal(18, 5)
+  closePrice  Decimal?       @db.Decimal(18, 5)
+  tp          Decimal?       @db.Decimal(18, 5)
+  sl          Decimal?       @db.Decimal(18, 5)
+  lots        Decimal        @db.Decimal(18, 2)
+  pnl         Decimal?       @db.Decimal(18, 2)
+  commission  Decimal        @default(0) @db.Decimal(18, 2)
+  swap        Decimal        @default(0) @db.Decimal(18, 2)
+  note        String?        @db.Text
+  /**
+   * JSON array of technique tags. No DB default: MySQL 8 rejects a literal
+   * DEFAULT on TEXT, so every insert writes "[]" (or the tags) explicitly.
+   */
+  tagsJson    String         @db.Text
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  account     JournalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, closeAt])
+  @@index([accountId, openAt])
+}
+
+/**
+ * Per-account risk objectives (max daily loss / max loss / profit target).
+ */
+model RiskRule {
+  id           Int            @id @default(autoincrement())
+  accountId    Int            @unique
+  maxDailyLoss Decimal        @default(250) @db.Decimal(18, 2)
+  maxLoss      Decimal        @default(500) @db.Decimal(18, 2)
+  profitTarget Decimal        @default(400) @db.Decimal(18, 2)
+  updatedAt    DateTime       @updatedAt
+  account      JournalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * ── Social account links (member-verified) ──
+ * One row per member+provider, written ONLY by a real OAuth/Login flow
+ * (Telegram Login Widget, Discord OAuth2, LINE Login) — never hand-typed.
+ * The Member telegram/discord columns stay as display copies so the CRM
+ * sync and TelegramAccess derivation keep working.
+ */
+
+model SocialAccount {
+  id             Int      @id @default(autoincrement())
+  memberId       Int
+  provider       String   @db.VarChar(16)
+  providerUserId String   @db.VarChar(96)
+  username       String?  @db.VarChar(191)
+  verifiedAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  member         Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, provider])
+  @@unique([provider, providerUserId])
+  @@index([memberId, provider])
+}
+
+/**
+ * ── Member notification reads (customer bell) ──
+ * The bell items themselves are derived on read (rebate, renewals, tiers,
+ * competitions, claims, spins) — only the dismissed keys persist here.
+ */
+
+model MemberNotificationRead {
+  id       Int      @id @default(autoincrement())
+  memberId Int
+  key      String   @db.VarChar(96)
+  readAt   DateTime @default(now())
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, key])
+  @@index([memberId, readAt])
+}
+
+/**
+ * ── Course Online (LMS) ──
+ * Admin-authored courses with ordered lessons; members enroll and tick lessons
+ * off. Progress is derived entirely from LessonProgress rows — nothing is
+ * stored as a percentage, so the numbers can never drift from the lessons.
+ */
+
+enum CourseLevel {
+  beginner
+  intermediate
+  advanced
+}
+
+/**
+ * Customer standing derived from monthly traded lots:
+ * - standard: traded >= requiredLots in the current month
+ * - premium:  traded >= requiredLots in each of the last 3 consecutive months
+ * - basic:    anything below that
+ */
+enum MemberLevel {
+  basic
+  standard
+  premium
+}
+
+model Course {
+  id          Int                @id @default(autoincrement())
+  slug        String             @unique @db.VarChar(64)
+  title       String             @db.VarChar(191)
+  description String?            @db.Text
+  /**
+   * Free-form category key shown as a filter tab (beginner/technical/risk/psychology/strategy).
+   */
+  category    String             @default("beginner") @db.VarChar(32)
+  level       CourseLevel        @default(beginner)
+  /**
+   * Minimum member level allowed to study this course.
+   */
+  minLevel    MemberLevel        @default(basic)
+  /**
+   * Cover image URL or data URL (empty = the default gradient card).
+   */
+  coverImage  String?            @db.Text
+  instructor  String?            @db.VarChar(120)
+  /**
+   * Total runtime label shown on the card (sum of the lessons' minutes).
+   */
+  durationMin Int                @default(0)
+  published   Boolean            @default(true)
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  lessons     CourseLesson[]
+  enrollments CourseEnrollment[]
+
+  @@index([published, sortOrder])
+}
+
+model CourseLesson {
+  id           Int              @id @default(autoincrement())
+  courseId     Int
+  title        String           @db.VarChar(191)
+  /**
+   * Optional section this lesson belongs to (FutureSkill-style curriculum
+   * grouping). Empty = rendered in one default group.
+   */
+  sectionTitle String?          @db.VarChar(191)
+  /**
+   * YouTube video id embedded by the player.
+   */
+  videoId      String?          @db.VarChar(64)
+  /**
+   * Chapter range inside the video (seconds) — lets one long video be split
+   * into lessons. `videoEnd` null = play to the end.
+   */
+  videoStart   Int              @default(0)
+  videoEnd     Int?
+  durationMin  Int              @default(0)
+  /**
+   * Lesson script / notes shown under the video on the watch page.
+   */
+  script       String?          @db.Text
+  sortOrder    Int              @default(0)
+  /**
+   * Free-preview lesson (visible before enrolling).
+   */
+  isPreview    Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress     LessonProgress[]
+
+  @@index([courseId, sortOrder])
+}
+
+model CourseEnrollment {
+  id          Int       @id @default(autoincrement())
+  courseId    Int
+  memberId    Int
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, memberId])
+  @@index([memberId, startedAt])
+}
+
+model LessonProgress {
+  id             Int          @id @default(autoincrement())
+  lessonId       Int
+  memberId       Int
+  /**
+   * Set when the lesson is completed (null = still watching). Row existence
+   * alone means nothing — heartbeats create rows before completion.
+   */
+  completedAt    DateTime?
+  /**
+   * Furthest video-clock position reached (seconds) — drives the ≥90%
+   * completion rule. Monotonic: heartbeats only ever raise it.
+   */
+  maxPositionSec Int          @default(0)
+  /**
+   * Full video duration in seconds, captured from the player (null until the
+   * first heartbeat that knows it). Needed to compute the watched %.
+   */
+  durationSec    Int?
+  updatedAt      DateTime     @updatedAt
+  lesson         CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, memberId])
+  @@index([memberId, completedAt])
+}
+
+/// Single-use token letting an existing member claim their account and set a
+/// password. Members are only ever created by the CRM sync, so this grants no
+/// new accounts — it just proves control of the address already on the row.
+model MemberClaimToken {
+  id        Int       @id @default(autoincrement())
+  memberId  Int
+  /// SHA-256 of the emailed token; the plaintext never touches the database.
+  tokenHash String    @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, usedAt])
+}
+
+/// Single-use token letting a freshly-created admin set their first password.
+/// Only an existing admin (via POST /api/crm/admins) can mint one of these —
+/// there is no public self-request form, unlike MemberClaimToken's /claim
+/// page, since exposing that would let anyone probe which addresses belong
+/// to admins.
+model AdminClaimToken {
+  id        Int       @id @default(autoincrement())
+  adminId   Int
+  /// SHA-256 of the emailed token; the plaintext never touches the database.
+  tokenHash String    @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  admin     Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, usedAt])
+}
+
+/// Avatars members can pick for their leaderboard profile (Settings). The 32
+/// built-in bears ship as static files (imageUrl); admins add more from
+/// /crm/leaderboard-avatars as uploaded images (imageData). Hiding one
+/// (active=false) makes members who picked it fall back to initials.
+model LeaderboardAvatarOption {
+  id        Int      @id @default(autoincrement())
+  label     String   @db.VarChar(96)
+  /**
+   * Static file under /public for built-ins.
+   */
+  imageUrl  String?  @db.VarChar(255)
+  /**
+   * Admin-uploaded image as a data URL (downscaled client-side).
+   */
+  imageData String?  @db.MediumText
+  builtIn   Boolean  @default(false)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+/// Public news / blog article shown on the landing site (/news). Managed in
+/// CRM → Website → News. `contentJson` is an ordered array of typed content
+/// blocks (heading, subheading, paragraph, list, image) — see site/data/news.ts.
+model NewsArticle {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique @db.VarChar(191)
+  title       String   @db.VarChar(255)
+  /// News | Promotion | Tools
+  category    String   @db.VarChar(32)
+  excerpt     String   @db.Text
+  heroImage   String   @db.Text
+  sourceUrl   String?  @db.Text
+  contentJson String   @db.LongText
+  published   Boolean  @default(true)
+  /// "blog" = homepage News & Insights + /news; "event" = homepage BeSight Events + /news.
+  section     String   @default("blog") @db.VarChar(16)
+  /// Blog topic (market-news | gold-outlook | economic-calendar | besight-update); null for events.
+  topic       String?  @db.VarChar(32)
+  /// Shown first in its homepage section.
+  pinned      Boolean  @default(false)
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([published, publishedAt])
+  @@index([section, published, publishedAt])
+}
+
+/// Newsletter signups from the landing site (footer + article sidebar).
+/// Listed and exported in CRM → Website → Subscribers.
+model NewsletterSubscriber {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique @db.VarChar(191)
+  name      String?  @db.VarChar(191)
+  /// Where they signed up: "footer" or "article:<slug>".
+  source    String   @db.VarChar(255)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ── SPDR Gold Trust (GLD) ────────────────────────────────────────────────
+// Raw → derived, as in the SPDR formula spec: the official historical archive
+// (xlsx) is imported as-is into SpdrDaily; SpdrAnalytics is recomputed from
+// it after every import, so a formula change only needs a re-run.
+
+/// One trading day from the official SPDR historical archive (US trade date).
+model SpdrDaily {
+  tradeDate          DateTime @id @db.Date
+  closingPrice       Decimal? @db.Decimal(14, 4)
+  ouncesPerShare     Decimal? @db.Decimal(14, 8)
+  navPerShare        Decimal? @db.Decimal(14, 6)
+  indicativePrice    Decimal? @db.Decimal(14, 4)
+  midPrice           Decimal? @db.Decimal(14, 4)
+  premiumDiscountPct Decimal? @db.Decimal(10, 4)
+  dailyShareVolume   BigInt?
+  totalOunces        Decimal  @db.Decimal(18, 2)
+  tonnes             Decimal  @db.Decimal(12, 2)
+  totalNavUsd        Decimal? @db.Decimal(20, 2)
+  fetchedAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+/// Daily gold close used by the analytics (one consistent source). Until a
+/// dedicated price feed exists this is the LBMA PM price implied by SPDR's
+/// own NAV (NAV per share ÷ ounces per share), source "spdr_nav".
+model GoldDaily {
+  tradeDate DateTime @id @db.Date
+  close     Decimal  @db.Decimal(12, 4)
+  source    String   @db.VarChar(32)
+  updatedAt DateTime @updatedAt
+}
+
+/// Derived per-day metrics (flows, streaks, percentiles, returns, momentum).
+/// Null where the history is too short for that window.
+model SpdrAnalytics {
+  tradeDate                  DateTime @id @db.Date
+  holdingsTonnes             Float
+  holdingsChangeTonnes       Float?
+  holdingsChangePct          Float?
+  flow3d                     Float?
+  flow7d                     Float?
+  flow14d                    Float?
+  flow30d                    Float?
+  flow90d                    Float?
+  flowYtd                    Float?
+  flowVelocity7d             Float?
+  flowAcceleration           Float?
+  flowZscore252              Float?
+  flowPercentileAll          Float?
+  flowPercentile5y           Float?
+  inflowStreak               Int      @default(0)
+  outflowStreak              Int      @default(0)
+  streakDirection            String   @db.VarChar(8)
+  streakAccumulatedFlow      Float    @default(0)
+  holdingsPercentileAll      Float?
+  holdingsPercentile5y       Float?
+  holdings52wHigh            Float?
+  holdings52wLow             Float?
+  holdingsDistance52wHighPct Float?
+  holdingsDistance52wLowPct  Float?
+  goldClose                  Float?
+  goldReturn1d               Float?
+  goldReturn3d               Float?
+  goldReturn7d               Float?
+  goldReturn14d              Float?
+  goldReturn30d              Float?
+  spdrChange14dPct           Float?
+  divergence7d               Float?
+  divergence14d              Float?
+  divergence30d              Float?
+  divergenceType14d          String?  @db.VarChar(24)
+  flow7dScore                Float?
+  flow30dScore               Float?
+  streakScore                Float?
+  accelerationScore          Float?
+  momentumScore              Float?
+  momentumLabel              String?  @db.VarChar(24)
+  regimeScore                Float?
+  regimeLabel                String?  @db.VarChar(32)
+  analyticsVersion           String   @db.VarChar(16)
+  calculatedAt               DateTime @default(now())
+}
+
+/// One import attempt (cron, automatic freshness check, or CRM "Sync now").
+model SpdrSyncRun {
+  id              Int       @id @default(autoincrement())
+  trigger         String    @db.VarChar(16)
+  status          String    @db.VarChar(16)
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  rowsRead        Int       @default(0)
+  rowsInserted    Int       @default(0)
+  rowsUpdated     Int       @default(0)
+  latestTradeDate DateTime? @db.Date
+  error           String?   @db.Text
+
+  @@index([startedAt])
+}
